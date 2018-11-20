@@ -5,12 +5,24 @@ import tornado.httpserver
 import json
 import requests
 
-import eosapi
-import wallet
-
 import os
 import re
 import ratelimit
+
+# your local account_name to transfer token
+ACCOUNT = "test-net"
+
+# your local wallet unlock password
+PASSWD = "caochong"
+
+# local wallet api url
+#WALLET_URL = "http://127.0.0.1:8091"
+WALLET_URL = "http://192.168.1.118:8091"
+
+IS_ACCOUNT_DATA = '{"jsonrpc": "2.0", "method": "is_account_registered", "params": ["%s"], "id": 1}'
+IS_LOCKED_DATA = '{"jsonrpc": "2.0", "method": "is_locked", "params": [], "id": 2}'
+UNLOCK_DATA = '{"jsonrpc": "2.0", "method": "unlock", "params": [""], "id": 3}'
+TRANSFER_DATA='{"jsonrpc": "2.0", "method": "transfer2", "params": ["%s", "%s", "%s", "%s", "%s", "true"], "id": 4}'
 
 # ------------------------------------------------------------------------------------------
 # ------ token transfer limiter
@@ -37,22 +49,20 @@ def write_json_response(handler, msg, code=200):
   handler.write(msg)
 
 def is_valid_account_name(account_name):
-  return len(account_name) < 13 and len(account_name) > 0 and not re.search(r'[^a-z1-5\.]', account_name)
-
-def is_valid_newaccount_name(account_name):
-  return len(account_name) == 12 and not re.search(r'[^a-z1-5\.]', account_name)
+  param = IS_ACCOUNT_DATA % account_name
+  response = requests.request("POST", WALLET_URL, data=param)
+  js = json.loads(response.text)
+  return js['result']
 
 def unlock_wallet():
-  param = json.dumps([
-    wallet.NAME,
-    wallet.PASSWD
-  ])
-  response = requests.request("POST", eosapi.WALLET_UNLOCK, data=param)
+  param = UNLOCK_DATA % PASSWD
+  response = requests.request("POST", WALLET_URL, data=param)
   return response.status_code == 200
 
 def is_wallet_locked():
-  response = requests.request("POST", eosapi.WALLET_GET_PUBLIC_KEYS)
-  return response.status_code != 200
+  response = requests.request("POST", WALLET_URL, data=IS_LOCKED_DATA)
+  js = json.loads(response.text)
+  return js['result']
 
 def get_first_arg_name_from_request(request):
   args = request.arguments.keys()
@@ -60,23 +70,6 @@ def get_first_arg_name_from_request(request):
     return args[0]
   else:
     return ''
-
-def account_exists(account_name):
-  payload = json.dumps({'account_name': account_name})
-  response = requests.request("POST", eosapi.GET_ACCOUNT, data=payload)
-  if response.status_code == 200:
-    ret = json.loads(response.text)
-    return ret['account_name'] == account_name
-  else:
-    return False
-
-def generate_key():
-  ret = os.popen('cleos create key').read()
-  array = ret.split()
-  if len(array) == 6:
-    return { 'private': array[2], 'public': array[5] }
-  else:
-    return None
 
 def unlock_wallet_if_locked():
   unlocked = False
@@ -103,10 +96,10 @@ class GetTokenHandler(tornado.web.RequestHandler):
   def _assembly_args(self, data):
     if data.has_key('account') and is_valid_account_name(data['account']):
       p = {}
-      p['from']     = wallet.ACCOUNT
+      p['from']     = ACCOUNT
       p['to']       = data['account']
       p['quantity'] = single_get_token_call_amount
-      p['symbol']   = "EOS"
+      p['symbol']   = "GXC"
       if data.has_key('memo'): p['memo']   = data['memo']
       else:                    p['memo']   = ''
       return p
@@ -114,14 +107,11 @@ class GetTokenHandler(tornado.web.RequestHandler):
       return None
 
   def _os_cmd_transfer(self, param):
-    cmdline = 'cleos --url {} transfer {} {} "{} {}" {}'.format(eosapi.NODEOS_URL,
-                                                                param['from'],
-                                                                param['to'],
-                                                                param['quantity'],
-                                                                param['symbol'],
-                                                                param['memo'])
-    result = os.system(cmdline)
-    return result == 0
+    param = TRANSFER_DATA % (ACCOUNT, param['to'], param['quantity'], param['symbol'], param['memo'])
+    response = requests.request("POST", WALLET_URL, data=param)
+    print response.text
+    js = json.loads(response.text)
+    return js['result']
 
   def _make_transfer(self, p):
     if unlock_wallet_if_locked():
@@ -169,93 +159,11 @@ ip_24h_newaccount_amount_limiter = ratelimit.RateLimitType(
 
 
 # ------------------------------------------------------------------------------------------
-# ------ Create Account Handler
-
-class CreateAccountHandler(tornado.web.RequestHandler):
-
-  def __init__(self, application, request, **kwargs):
-    tornado.web.RequestHandler.__init__(self, application, request, **kwargs)
-
-  def _assembly_args(self, account_name, owner_key, active_key):
-    p = {
-      'creator':        wallet.ACCOUNT,
-      'account':        account_name,
-      'owner_key':      owner_key,
-      'active_key':     active_key,
-      'stake-cpu':      '1 EOS',
-      'stake-net':      '1 EOS',
-      'buy-ram-kbytes': 8
-    }
-    return p
-
-  def _os_cmd_create_account(self, p):
-    cmdline = 'cleos --url {} system newaccount --stake-net \'{}\' --stake-cpu \'{}\' --buy-ram-kbytes {} {} {} {} {}'.format(
-      eosapi.NODEOS_URL,
-      p['stake-net'],
-      p['stake-cpu'],
-      p['buy-ram-kbytes'],
-      p['creator'],
-      p['account'],
-      p['owner_key'],
-      p['active_key']
-    )
-    result = os.system(cmdline)
-    return result == 0
-
-  def _create_account(self, p):
-    if unlock_wallet_if_locked():
-      return self._os_cmd_create_account(p)
-    else:
-      return False
-
-  def _handle(self, request):
-    name = get_first_arg_name_from_request(request)
-
-    if not is_valid_newaccount_name(name):
-      failmsg = {'msg': 'failed, unsupported account name \'{}\''.format(name)}
-      write_json_response(self, failmsg, 400)
-      return
-
-    if account_exists(name):
-      failmsg = {'msg': 'failed, account \'{}\' exists already'.format(name)}
-      write_json_response(self, failmsg, 400)
-      return
-
-    owner_key = generate_key()
-    active_key = generate_key()
-    if owner_key and active_key:
-      p = self._assembly_args(name, owner_key['public'], active_key['public'])
-      if self._create_account(p):
-        ip_24h_newaccount_amount_limiter.increase_amount(1, self)
-        retmsg = {
-          'msg':      'succeeded',
-          'account':  name,
-          'keys':     { 'owner_key':  owner_key, 'active_key': active_key }
-        }
-        write_json_response(self, retmsg)
-      else:
-        failmsg = {'msg': 'failed, failed to createa account'}
-        write_json_response(self, failmsg, 400)
-    else:
-      failmsg = {'msg': 'failed, failed to generate keys'}
-      write_json_response(self, failmsg, 400)
-
-  @ratelimit.limit_by(ip_24h_newaccount_amount_limiter)
-  def post(self):
-    self._handle(self.request)
-
-  @ratelimit.limit_by(ip_24h_newaccount_amount_limiter)
-  def get(self):
-    self._handle(self.request)
-
-
-# ------------------------------------------------------------------------------------------
 # ------ service app
 
 def make_app():
   return tornado.web.Application([
     (r"/get_token", GetTokenHandler),
-    (r"/create_account", CreateAccountHandler),
   ])
 
 if __name__ == "__main__":
