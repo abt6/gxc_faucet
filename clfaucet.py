@@ -17,8 +17,8 @@ ACCOUNT = "test-net"
 PASSWD = "caochong"
 
 # local wallet api url
-#WALLET_URL = "http://127.0.0.1:8091"
 WALLET_URL = "http://127.0.0.1:8091"
+#WALLET_URL = "http://127.0.0.1:8091"
 
 
 IS_ACCOUNT_DATA = '{"jsonrpc": "2.0", "method": "is_account_registered", "params": ["%s"], "id": 1}'
