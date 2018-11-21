@@ -114,7 +114,7 @@ class GetTokenHandler(tornado.web.RequestHandler):
 
   def _assembly_args(self, data):
     symbol = "GXC"
-    if data.has_key('symbol') and is_valid_symbol(data['symbol'])
+    if data.has_key('symbol') and is_valid_symbol(data['symbol']):
       symbol = data['symbol']
 
     if data.has_key('account') and is_valid_account_name(data['account']):
