@@ -9,6 +9,7 @@ import os
 import re
 import ratelimit
 
+
 # your local account_name to transfer token
 ACCOUNT = "test-net"
 
@@ -17,11 +18,12 @@ PASSWD = "caochong"
 
 # local wallet api url
 #WALLET_URL = "http://127.0.0.1:8091"
-WALLET_URL = "http://192.168.1.118:8091"
+WALLET_URL = "http://127.0.0.1:8091"
+
 
 IS_ACCOUNT_DATA = '{"jsonrpc": "2.0", "method": "is_account_registered", "params": ["%s"], "id": 1}'
 IS_LOCKED_DATA = '{"jsonrpc": "2.0", "method": "is_locked", "params": [], "id": 2}'
-UNLOCK_DATA = '{"jsonrpc": "2.0", "method": "unlock", "params": [""], "id": 3}'
+UNLOCK_DATA = '{"jsonrpc": "2.0", "method": "unlock", "params": ["%s"], "id": 3}'
 TRANSFER_DATA='{"jsonrpc": "2.0", "method": "transfer2", "params": ["%s", "%s", "%s", "%s", "%s", "true"], "id": 4}'
 
 # ------------------------------------------------------------------------------------------
@@ -30,7 +32,7 @@ TRANSFER_DATA='{"jsonrpc": "2.0", "method": "transfer2", "params": ["%s", "%s", 
 def token_limit_exceed(handler):
     write_json_response(handler, {'msg': 'reach 24 hours max token amount'}, 403)
 
-single_get_token_call_amount = 100
+single_get_token_call_amount = 200
 
 ip_24h_token_amount_limiter = ratelimit.RateLimitType(
   name = "ip_24h_token_amount",
@@ -47,6 +49,13 @@ def write_json_response(handler, msg, code=200):
   handler.set_status(code)
   handler.set_header('Content-Type', 'application/json; charset=UTF-8')
   handler.write(msg)
+
+def get_first_arg_name_from_request(request):
+  args = request.arguments.keys()
+  if len(args) == 1:
+    return args[0]
+  else:
+    return ''
 
 def is_valid_account_name(account_name):
   param = IS_ACCOUNT_DATA % account_name
@@ -74,12 +83,12 @@ def get_first_arg_name_from_request(request):
 def unlock_wallet_if_locked():
   unlocked = False
   if is_wallet_locked():
-    print('wallet "{}" locked, try to unlock...'.format(wallet.NAME))
+    print 'wallet is locked, try to unlock...'
     if unlock_wallet():
       unlocked = True
-      print('wallet "{}" unlocked!'.format(wallet.NAME))
+      print 'wallet unlocked!'
     else:
-      print('wallet "{}" unlock failed'.format(wallet.NAME))
+      print 'wallet  unlock failed'
   else:
     unlocked = True
   return unlocked
@@ -133,32 +142,11 @@ class GetTokenHandler(tornado.web.RequestHandler):
       write_json_response(self, fmtmsg, 400)
 
   @ratelimit.limit_by(ip_24h_token_amount_limiter)
-  def post(self):
-    data = {'account': get_first_arg_name_from_request(self.request)}
-    # data = json.loads(self.request.body.decode())
-    self._handle(data)
-
-  @ratelimit.limit_by(ip_24h_token_amount_limiter)
   def get(self):
     data = {'account': get_first_arg_name_from_request(self.request)}
     self._handle(data)
 
-
-# ------------------------------------------------------------------------------------------
-# ------ account creation limiter
-
-def newaccount_limit_exceed(handler):
-    write_json_response(handler, {'msg': 'reach 24 hours max amount of account creation'}, 403)
-
-ip_24h_newaccount_amount_limiter = ratelimit.RateLimitType(
-  name = "ip_24h_newaccount_amount",
-  amount = 1000,         # 24 hours amount
-  expire = 3600*24,      # 24 hours
-  identity = lambda h: h.request.remote_ip,
-  on_exceed = newaccount_limit_exceed)
-
-
-# ------------------------------------------------------------------------------------------
+# --------------------------l---------------------------------------------------------------
 # ------ service app
 
 def make_app():
@@ -169,6 +157,6 @@ def make_app():
 if __name__ == "__main__":
   app = make_app()
   server = tornado.httpserver.HTTPServer(app)
-  server.bind(80)
+  server.bind(8088)
   server.start(0)
   tornado.ioloop.IOLoop.current().start()
