@@ -57,6 +57,13 @@ def get_first_arg_name_from_request(request):
   else:
     return ''
 
+def get_second_arg_name_from_request(request):
+  args = request.arguments.keys()
+  if len(args) == 2:
+    return args[1]
+  else:
+    return ''
+
 def is_valid_symbol(symbol):
   param = IS_SYMBOL_DATA % symbol
   response = requests.request("POST", WALLET_URL, data=param)
@@ -157,7 +164,7 @@ class GetTokenHandler(tornado.web.RequestHandler):
 
   @ratelimit.limit_by(ip_24h_token_amount_limiter)
   def get(self):
-    data = {'account': get_first_arg_name_from_request(self.request)}
+    data = {'symbol': get_first_arg_name_from_request(self.request), 'account': get_second_arg_name_from_request(self,request) }
     self._handle(data)
 
 # --------------------------l---------------------------------------------------------------
