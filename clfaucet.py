@@ -57,6 +57,16 @@ def get_first_arg_name_from_request(request):
   else:
     return ''
 
+def is_valid_symbol(symbol):
+  param = IS_SYMBOL_DATA % symbol
+  response = requests.request("POST", WALLET_URL, data=param)
+  js = json.loads(response.text)
+  try:
+    error = js['error']
+    return False
+  except:
+    return true
+
 def is_valid_account_name(account_name):
   param = IS_ACCOUNT_DATA % account_name
   response = requests.request("POST", WALLET_URL, data=param)
@@ -103,12 +113,16 @@ class GetTokenHandler(tornado.web.RequestHandler):
     tornado.web.RequestHandler.__init__(self, application, request, **kwargs)
 
   def _assembly_args(self, data):
+    symbol = "GXC"
+    if data.has_key('symbol') and is_valid_symbol(data['symbol'])
+      symbol = data['symbol']
+
     if data.has_key('account') and is_valid_account_name(data['account']):
       p = {}
       p['from']     = ACCOUNT
       p['to']       = data['account']
       p['quantity'] = single_get_token_call_amount
-      p['symbol']   = "GXC"
+      p['symbol']   = symbol
       if data.has_key('memo'): p['memo']   = data['memo']
       else:                    p['memo']   = ''
       return p
