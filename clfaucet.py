@@ -159,7 +159,7 @@ class GetTokenHandler(tornado.web.RequestHandler):
         failmsg = {'msg': 'transaction failed, possible reason: account does not exist'}
         write_json_response(self, failmsg, 400)
     else:
-      fmtmsg = {'msg':'please use request with URL of format: https://testnet.gxchain.org/gxc/get_token??valid_account_name'}
+      fmtmsg = {'msg':'please use request with URL of format: https://testnet.gxchain.org/gxc/get_token?valid_account_name'}
       write_json_response(self, fmtmsg, 400)
 
   @ratelimit.limit_by(ip_24h_token_amount_limiter)
