@@ -35,11 +35,11 @@ def token_limit_exceed(handler):
 def account_limit_exceed(handler):
     write_json_response(handler, {'msg': 'reach 24 hours max account amount'}, 403)
 
-single_get_token_call_amount = 200
+single_get_token_call_amount = 2
 
 ip_24h_token_amount_limiter = ratelimit.RateLimitType(
   name = "ip_24h_token_amount",
-  amount = 1000,         # 24 hours amount
+  amount = 1000000,         # 24 hours amount
   expire = 3600*24,      # 24 hours
   identity = lambda h: h.request.remote_ip,
   on_exceed = token_limit_exceed)
@@ -82,7 +82,7 @@ def is_valid_symbol(symbol):
     error = js['error']
     return False
   except:
-    return True
+    return true
 
 def is_valid_account_name(account_name):
   param = IS_ACCOUNT_DATA % account_name
@@ -176,7 +176,7 @@ class GetTokenHandler(tornado.web.RequestHandler):
   @ratelimit.limit_by(ip_24h_token_amount_limiter)
   @ratelimit.limit_by(account_24h_token_amount_limiter)
   def get(self):
-    data = {'symbol': get_first_arg_name_from_request(self.request), 'account': get_second_arg_name_from_request(self,request) }
+    data = {'account': get_first_arg_name_from_request(self.request)}
     self._handle(data)
 
 # --------------------------l---------------------------------------------------------------
