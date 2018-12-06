@@ -82,7 +82,7 @@ def is_valid_symbol(symbol):
     error = js['error']
     return False
   except:
-    return true
+    return True
 
 def is_valid_account_name(account_name):
   param = IS_ACCOUNT_DATA % account_name
