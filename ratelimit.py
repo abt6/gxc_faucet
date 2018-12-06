@@ -31,6 +31,7 @@ class RateLimitType:
 
     def increase_amount(self, amount, identity_arg):
         name = self.server_name(identity_arg)
+        print name
         current = g_redis.get(name)
         if current is not None:
             g_redis.incr(name, amount)

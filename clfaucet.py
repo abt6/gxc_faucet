@@ -35,11 +35,11 @@ def token_limit_exceed(handler):
 def account_limit_exceed(handler):
     write_json_response(handler, {'msg': 'reach 24 hours max account amount'}, 403)
 
-single_get_token_call_amount = 2
+single_get_token_call_amount = 200
 
 ip_24h_token_amount_limiter = ratelimit.RateLimitType(
   name = "ip_24h_token_amount",
-  amount = 1000000,         # 24 hours amount
+  amount = 6000,         # 24 hours amount
   expire = 3600*24,      # 24 hours
   identity = lambda h: h.request.remote_ip,
   on_exceed = token_limit_exceed)
@@ -47,9 +47,9 @@ ip_24h_token_amount_limiter = ratelimit.RateLimitType(
 
 account_24h_token_amount_limiter = ratelimit.RateLimitType(
   name = "account_24h_token_amount",
-  amount = 3,         # 24 hours amount
+  amount = 5,         # 24 hours amount
   expire = 3600*24,      # 24 hours
-  identity = lambda h: h.request.arguments.keys()[1] if len(h.request.arguments.keys()) == 2 else '',
+  identity = lambda h: h.request.arguments.keys()[0] if len(h.request.arguments.keys()) == 1 else '',
   on_exceed = account_limit_exceed)
 
 # ------------------------------------------------------------------------------------------
@@ -165,6 +165,8 @@ class GetTokenHandler(tornado.web.RequestHandler):
       if self._make_transfer(param):
         ip_24h_token_amount_limiter.increase_amount(param['quantity'], self)
         account_24h_token_amount_limiter.increase_amount(1, self)
+        print ip_24h_token_amount_limiter.server_name(self)
+        print account_24h_token_amount_limiter.server_name(self)
         write_json_response(self, {'msg': 'succeeded'})
       else:
         failmsg = {'msg': 'transaction failed, possible reason: account does not exist'}
